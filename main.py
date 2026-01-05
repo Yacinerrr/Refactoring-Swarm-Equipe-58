@@ -3,10 +3,13 @@ import sys
 import os
 from dotenv import load_dotenv
 from src.utils.logger import log_experiment
+from src.utils.analysis_tools.pylint_runner import run_pylint
+
 
 load_dotenv()
 
 def main():
+    run_pylint("calculator.py","sandbox")
     parser = argparse.ArgumentParser()
     parser.add_argument("--target_dir", type=str, required=True)
     args = parser.parse_args()
