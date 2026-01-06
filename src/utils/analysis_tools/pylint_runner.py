@@ -6,7 +6,7 @@ import re
 def run_pylint(sandbox_root: str) -> list[dict]:
     """
     Exécute pylint sur tous les fichiers Python du sandbox.
-    
+
     Args:
         sandbox_root (str): chemin du dossier sandbox racine
 
@@ -16,7 +16,7 @@ def run_pylint(sandbox_root: str) -> list[dict]:
     sandbox_path = Path(sandbox_root).resolve()
     results = []
 
-    # Trouver tous les fichiers .py
+    # Trouver tous les fichiers .py dans tous les sous-dossiers
     py_files = list(sandbox_path.rglob("*.py"))
 
     if not py_files:
@@ -45,7 +45,7 @@ def run_pylint(sandbox_root: str) -> list[dict]:
             stderr = completed.stderr or ""
             rc = completed.returncode
 
-            # Détecter une erreur de syntaxe
+            # Détection d'erreur de syntaxe
             syntax_error = False
             syntax_patterns = [
                 r"SyntaxError",
@@ -58,7 +58,7 @@ def run_pylint(sandbox_root: str) -> list[dict]:
                     syntax_error = True
                     break
 
-            # Extraire la note
+            # Extraire la note pylint
             score_match = re.search(
                 r"rated at\s*([0-9]+(?:\.[0-9]+)?)/10",
                 combined_output
