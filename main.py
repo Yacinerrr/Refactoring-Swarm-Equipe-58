@@ -3,14 +3,14 @@ import sys
 import os
 from dotenv import load_dotenv
 from src.utils.logger import log_experiment
-from src.utils.analysis_tools.pylint_runner import run_pylint
+from src.utils.analysis_tools.pytest_runner import run_pytest
 
 
 load_dotenv()
 
 def main():
     
-    results = run_pylint("./sandbox")
+    results = run_pytest("./sandbox")
     for r in results:
         print(r)
 

@@ -1,47 +1,79 @@
-"""
-Lance pytest sur un fichier de test spécifique, confiné dans le dossier sandbox.
-"""
 from pathlib import Path
 import subprocess
-import os
-from .common import find_sandbox_root_for_path
-from typing import Optional
+import re
 
-
-def run_pytest(file_path: str) -> bool:
+def run_pytest(sandbox_root: str) -> list[dict]:
     """
-    Lance pytest sur `file_path`.
-    - Vérifie que le fichier est dans un dossier 'sandbox'.
-    - Exécute pytest avec cwd fixé au dossier sandbox.
-    - Affiche la sortie dans la console.
-    - Retourne True si tous les tests passent, False sinon.
+    Exécute pytest sur tous les fichiers de test du sandbox.
+
+    Args:
+        sandbox_root (str): chemin du dossier sandbox racine
+
+    Returns:
+        list[dict]: liste de résultats pytest par fichier avec indication d'erreur de test
     """
-    file_p = Path(file_path)
-    sandbox_root = find_sandbox_root_for_path(file_p)
-    if sandbox_root is None:
-        raise ValueError(f"Le fichier {file_path} n'est pas contenu dans un dossier 'sandbox'. Abandon.")
-    if not file_p.exists():
-        raise FileNotFoundError(f"Fichier non trouvé: {file_p}")
+    sandbox_path = Path(sandbox_root).resolve()
+    results = []
 
-    try:
-        rel_path = file_p.resolve().relative_to(sandbox_root.resolve())
-    except Exception:
-        rel_path = file_p
+    # Trouver tous les fichiers de test dans les dossiers "test"
+    test_files = list(sandbox_path.rglob("test_*.py"))
+    if not test_files:
+        return [{
+            "path": "",
+            "code": 0,
+            "remarks": "Aucun fichier de test trouvé dans le sandbox.",
+            "test_error": False
+        }]
 
-    cmd = ["pytest", str(rel_path), "-q"]
-    print(f"\n--- Exécution pytest sur: {file_p} (cwd={sandbox_root}) ---")
-    env = os.environ.copy()
-    env.setdefault("XDG_CACHE_HOME", str(sandbox_root / ".cache"))
-    env.setdefault("TMPDIR", str(sandbox_root / ".tmp"))
+    for file_p in test_files:
+        rel_path = file_p.relative_to(sandbox_path)
+        cmd = ["pytest", str(rel_path), "--maxfail=1", "--disable-warnings", "-q"]
 
-    try:
-        completed = subprocess.run(cmd, cwd=str(sandbox_root), env=env, check=False)
-        passed = completed.returncode == 0
-        print(f"pytest terminé, returncode={completed.returncode}, passed={passed}")
-        return passed
-    except FileNotFoundError:
-        print("Erreur: 'pytest' introuvable. Installez pytest dans votre environnement.")
-        return False
-    except Exception as e:
-        print(f"Erreur lors de l'exécution de pytest: {e}")
-        return False
+        try:
+            completed = subprocess.run(
+                cmd,
+                cwd=str(sandbox_path),
+                capture_output=True,
+                text=True,
+                check=False
+            )
+
+            stdout = completed.stdout or ""
+            stderr = completed.stderr or ""
+            rc = completed.returncode
+
+            # Détection d'erreur de test (similaire à syntax_error)
+            test_error = rc != 0
+
+            # Première remarque utile
+            remarks = "Aucun message descriptif disponible."
+            for line in (stdout + "\n" + stderr).splitlines():
+                line = line.strip()
+                if line and not line.lower().startswith("pytest") and not line.startswith("="):
+                    remarks = line
+                    break
+
+            results.append({
+                "path": str(rel_path),
+                "code": rc,
+                "remarks": remarks,
+                "test_error": test_error
+            })
+
+        except FileNotFoundError:
+            results.append({
+                "path": str(rel_path),
+                "code": 127,
+                "remarks": "pytest introuvable dans l'environnement.",
+                "test_error": False
+            })
+
+        except Exception as e:
+            results.append({
+                "path": str(rel_path),
+                "code": 1,
+                "remarks": f"Erreur pytest: {e}",
+                "test_error": False
+            })
+
+    return results
