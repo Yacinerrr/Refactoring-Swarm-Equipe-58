@@ -1,75 +1,60 @@
 """
 Parcourt un sandbox et lance pylint/pytest sur les fichiers Python.
 """
-from pathlib import Path
-from typing import Dict, Any, Optional
-import json
 from .pylint_runner import run_pylint
 from .pytest_runner import run_pytest
-
-
-def analyze_sandbox(sandbox_dir: str) -> Dict[str, Dict[str, Any]]:
+from pathlib import Path 
+def analyze_sandbox(sandbox_root: str) -> list[dict]:
     """
-    Parcourt tous les fichiers Python dans sandbox_dir et ses sous-dossiers.
-    - Pour chaque fichier .py :
-        - lance run_pylint(file)
-        - si le nom commence par 'test_', lance run_pytest(file)
-    - Retourne un dictionnaire prêt pour sérialisation JSON.
-    - Affiche le rapport et le sauve dans sandbox/logs/report.json.
+    Pour chaque fichier Python du sandbox :
+    - Récupère le résultat pylint
+    - Récupère le résultat pytest correspondant si un test existe
+
+    Args:
+        sandbox_root (str): chemin du dossier sandbox
+
+    Returns:
+        list[dict]: liste des fichiers avec résultats combinés
     """
-    sandbox_path = Path(sandbox_dir).resolve()
-    if not sandbox_path.exists() or not sandbox_path.is_dir():
-        raise ValueError(f"Le dossier sandbox spécifié n'existe pas: {sandbox_dir}")
+    pylint_results = run_pylint(sandbox_root)
+    pytest_results = run_pytest(sandbox_root)
 
-    if sandbox_path.name != "sandbox" and not any(p.name == "sandbox" for p in sandbox_path.parents):
-        raise ValueError(f"Le dossier fourni ne semble pas être un 'sandbox': {sandbox_path}")
+    # Dictionnaire pour accéder aux résultats pytest par chemin
+    pytest_map = {r["path"]: r for r in pytest_results}
 
-    report: Dict[str, Dict[str, Any]] = {}
+    merged = []
 
-    print(f"\nAnalyse du sandbox: {sandbox_path}")
+    for r in pylint_results:
+        path = r["path"]
+        # Nom de base du fichier pour chercher test correspondant
+        filename = Path(path).name
+        test_name = f"test_{filename}"  # convention pytest
 
-    for py_file in sandbox_path.rglob("*.py"):
-        try:
-            rel_key = str(py_file.relative_to(sandbox_path).as_posix())
-        except Exception:
-            rel_key = str(py_file)
+        # Chercher pytest correspondant
+        test_result = None
+        for p_path, p_r in pytest_map.items():
+            if Path(p_path).name == test_name:
+                test_result = p_r
+                break
 
-        try:
-            pylint_res = run_pylint(str(py_file))
-            # run_pylint retourne (returncode:int, summary:str)
-            if isinstance(pylint_res, tuple) and len(pylint_res) >= 2:
-                pylint_code, pylint_summary = pylint_res[0], pylint_res[1]
-            else:
-                pylint_code = int(pylint_res)
-                pylint_summary = ""
-        except Exception as e:
-            print(f"Erreur en lançant pylint pour {py_file}: {e}")
-            pylint_code = -1
-            pylint_summary = f"Erreur: {e}"
+        merged.append({
+            "path": path,
+            "pylint_result": r,
+            "pytest_result": test_result
+        })
 
-        pytest_result: Optional[bool] = None
-        if py_file.name.startswith("test_"):
-            try:
-                pytest_result = run_pytest(str(py_file))
-            except Exception as e:
-                print(f"Erreur en lançant pytest pour {py_file}: {e}")
-                pytest_result = False
+    # Ajouter les fichiers pytest qui n'ont pas de pylint (rare)
+    for p_path, p_r in pytest_map.items():
+        filename = Path(p_path).name
+        original_file = filename[5:] if filename.startswith("test_") else None
+        if original_file:
+            # Vérifier si ce fichier existe déjà dans merged
+            if not any(Path(m["path"]).name == original_file for m in merged):
+                merged.append({
+                    "path": p_path,
+                    "pylint_result": None,
+                    "pytest_result": p_r
+                })
 
-    report[rel_key] = {"pylint_returncode": pylint_code, "pylint_summary": pylint_summary, "pytest_passed": pytest_result}
+    return merged
 
-    report_json = json.dumps(report, indent=2, ensure_ascii=False)
-    print("\n--- Rapport d'analyse ---")
-    print(report_json)
-
-    logs_dir = sandbox_path / "logs"
-    try:
-        logs_dir.mkdir(parents=True, exist_ok=True)
-        report_file = logs_dir / "report.json"
-        with report_file.open("w", encoding="utf-8") as f:
-            json.dump(report, f, indent=2, ensure_ascii=False)
-        print(f"Rapport sauvegardé dans: {report_file}")
-    except Exception as e:
-        print(f"Impossible d'écrire le rapport dans {logs_dir}: {e}")
-    print("\n=== Résultat final (dictionnaire Python) ===")
-    print(report)
-    return report

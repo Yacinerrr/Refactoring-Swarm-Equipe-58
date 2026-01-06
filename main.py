@@ -4,13 +4,14 @@ import os
 from dotenv import load_dotenv
 from src.utils.logger import log_experiment
 from src.utils.analysis_tools.pytest_runner import run_pytest
+from src.utils.analysis_tools.analyze import analyze_sandbox
 
 
 load_dotenv()
 
 def main():
     
-    results = run_pytest("./sandbox")
+    results = analyze_sandbox("./sandbox")
     for r in results:
         print(r)
 
