@@ -1,84 +1,90 @@
-"""
-Fonction pour lancer pylint sur un fichier Python dans le sandbox.
-Retourne un dictionnaire avec chemin, score, code retour et remarques.
-"""
 from pathlib import Path
 import subprocess
 import re
 
-def run_pylint(file_path: str, sandbox_root: str) -> dict:
+
+def run_pylint(sandbox_root: str) -> list[dict]:
     """
-    Exécute pylint sur un fichier Python spécifique dans le sandbox.
-    
+    Exécute pylint sur tous les fichiers Python du sandbox.
     Args:
-        file_path (str): chemin du fichier à analyser
         sandbox_root (str): chemin du dossier sandbox racine
 
     Returns:
-        dict: {
-            "path": str,    # chemin relatif dans sandbox
-            "score": str,   # note sur 10 sous forme de string
-            "code": int,    # code retour pylint
-            "remarks": str  # description des problèmes
-        }
+        list[dict]: liste de résultats pylint par fichier
     """
-    file_p = Path(file_path).resolve()
     sandbox_path = Path(sandbox_root).resolve()
-    
-    # chemin relatif pour pylint
-    rel_path = file_p.relative_to(sandbox_path)
+    results = []
 
-    cmd = ["pylint", str(rel_path), "--score=y"]
+    # Trouver tous les fichiers .py
+    py_files = list(sandbox_path.rglob("*.py"))
 
-    print(f"\n--- Exécution pylint sur: {file_p} (cwd={sandbox_path}) ---")
+    if not py_files:
+        return [{
+            "path": "",
+            "score": "n/a",
+            "code": 0,
+            "remarks": "Aucun fichier Python trouvé dans le sandbox."
+        }]
 
-    try:
-        completed = subprocess.run(
-            cmd, cwd=str(sandbox_path),
-            capture_output=True, text=True, check=False
-        )
+    for file_p in py_files:
+        rel_path = file_p.relative_to(sandbox_path)
+        cmd = ["pylint", str(rel_path), "--score=y"]
 
-        stdout = completed.stdout or ""
-        stderr = completed.stderr or ""
-        rc = completed.returncode
+        
 
-        # Extraire la note sur 10
-        score_match = re.search(r"Your code has been rated at\s*([0-9]+(?:\.[0-9]+)?)/10", stdout + "\n" + stderr)
-        score = score_match.group(1) if score_match else "n/a"
+        try:
+            completed = subprocess.run(
+                cmd,
+                cwd=str(sandbox_path),
+                capture_output=True,
+                text=True,
+                check=False
+            )
 
-        # Extraire la première remarque utile
-        remarks = ""
-        for line in stdout.splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            if line.startswith("********") or line.lower().startswith("pylint") or "rated at" in line:
-                continue
-            remarks = line
-            break
-        if not remarks:
-            # fallback sur stderr
-            for line in stderr.splitlines():
+            stdout = completed.stdout or ""
+            stderr = completed.stderr or ""
+            rc = completed.returncode
+
+            # Extraire la note
+            score_match = re.search(
+                r"rated at\s*([0-9]+(?:\.[0-9]+)?)/10",
+                stdout + stderr
+            )
+            score = score_match.group(1) if score_match else "n/a"
+
+            # Première remarque utile
+            remarks = "Aucun message descriptif disponible."
+            for line in stdout.splitlines():
                 line = line.strip()
-                if line:
+                if line and not (
+                    line.startswith("********")
+                    or "rated at" in line
+                    or line.lower().startswith("pylint")
+                ):
                     remarks = line
                     break
-        if not remarks:
-            remarks = "Aucun message descriptif disponible."
 
-        print(f"pylint terminé, returncode={rc}, score={score} , remarks={remarks}")
-        return {
-            "path": str(rel_path),
-            "score": score,
-            "code": rc,
-            "remarks": remarks
-        }
+            results.append({
+                "path": str(rel_path),
+                "score": score,
+                "code": rc,
+                "remarks": remarks
+            })
 
-    except FileNotFoundError:
-        msg = "Erreur: 'pylint' introuvable. Installez pylint dans votre environnement."
-        print(msg)
-        return {"path": str(rel_path), "score": "n/a", "code": 127, "remarks": msg}
-    except Exception as e:
-        msg = f"Erreur lors de l'exécution de pylint: {e}"
-        print(msg)
-        return {"path": str(rel_path), "score": "n/a", "code": 1, "remarks": msg}
+        except FileNotFoundError:
+            results.append({
+                "path": str(rel_path),
+                "score": "n/a",
+                "code": 127,
+                "remarks": "pylint introuvable dans l'environnement."
+            })
+
+        except Exception as e:
+            results.append({
+                "path": str(rel_path),
+                "score": "n/a",
+                "code": 1,
+                "remarks": f"Erreur pylint: {e}"
+            })
+
+    return results

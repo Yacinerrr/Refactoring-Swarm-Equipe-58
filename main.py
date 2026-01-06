@@ -9,17 +9,11 @@ from src.utils.analysis_tools.pylint_runner import run_pylint
 load_dotenv()
 
 def main():
-    run_pylint("calculator.py","sandbox")
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--target_dir", type=str, required=True)
-    args = parser.parse_args()
+    
+    results = run_pylint("./sandbox")
+    for r in results:
+        print(r)
 
-    if not os.path.exists(args.target_dir):
-        print(f"❌ Dossier {args.target_dir} introuvable.")
-        sys.exit(1)
-
-    print(f"🚀 DEMARRAGE SUR : {args.target_dir}")
-    log_experiment("System", "STARTUP", f"Target: {args.target_dir}", "INFO")
     print("✅ MISSION_COMPLETE")
 
 if __name__ == "__main__":
