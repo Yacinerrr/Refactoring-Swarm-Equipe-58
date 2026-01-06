@@ -6,11 +6,12 @@ import re
 def run_pylint(sandbox_root: str) -> list[dict]:
     """
     Exécute pylint sur tous les fichiers Python du sandbox.
+    
     Args:
         sandbox_root (str): chemin du dossier sandbox racine
 
     Returns:
-        list[dict]: liste de résultats pylint par fichier
+        list[dict]: liste de résultats pylint par fichier avec indication d'erreur de syntaxe
     """
     sandbox_path = Path(sandbox_root).resolve()
     results = []
@@ -23,14 +24,13 @@ def run_pylint(sandbox_root: str) -> list[dict]:
             "path": "",
             "score": "n/a",
             "code": 0,
-            "remarks": "Aucun fichier Python trouvé dans le sandbox."
+            "remarks": "Aucun fichier Python trouvé dans le sandbox.",
+            "syntax_error": False
         }]
 
     for file_p in py_files:
         rel_path = file_p.relative_to(sandbox_path)
         cmd = ["pylint", str(rel_path), "--score=y"]
-
-        
 
         try:
             completed = subprocess.run(
@@ -45,10 +45,23 @@ def run_pylint(sandbox_root: str) -> list[dict]:
             stderr = completed.stderr or ""
             rc = completed.returncode
 
+            # Détecter une erreur de syntaxe
+            syntax_error = False
+            syntax_patterns = [
+                r"SyntaxError",
+                r"invalid syntax",
+                r"unexpected EOF while parsing"
+            ]
+            combined_output = stdout + "\n" + stderr
+            for pattern in syntax_patterns:
+                if re.search(pattern, combined_output):
+                    syntax_error = True
+                    break
+
             # Extraire la note
             score_match = re.search(
                 r"rated at\s*([0-9]+(?:\.[0-9]+)?)/10",
-                stdout + stderr
+                combined_output
             )
             score = score_match.group(1) if score_match else "n/a"
 
@@ -68,7 +81,8 @@ def run_pylint(sandbox_root: str) -> list[dict]:
                 "path": str(rel_path),
                 "score": score,
                 "code": rc,
-                "remarks": remarks
+                "remarks": remarks,
+                "syntax_error": syntax_error
             })
 
         except FileNotFoundError:
@@ -76,7 +90,8 @@ def run_pylint(sandbox_root: str) -> list[dict]:
                 "path": str(rel_path),
                 "score": "n/a",
                 "code": 127,
-                "remarks": "pylint introuvable dans l'environnement."
+                "remarks": "pylint introuvable dans l'environnement.",
+                "syntax_error": False
             })
 
         except Exception as e:
@@ -84,7 +99,8 @@ def run_pylint(sandbox_root: str) -> list[dict]:
                 "path": str(rel_path),
                 "score": "n/a",
                 "code": 1,
-                "remarks": f"Erreur pylint: {e}"
+                "remarks": f"Erreur pylint: {e}",
+                "syntax_error": False
             })
 
     return results
