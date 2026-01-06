@@ -4,6 +4,7 @@ import os
 from dotenv import load_dotenv
 from src.utils.logger import log_experiment
 
+
 load_dotenv()
 
 def main():
