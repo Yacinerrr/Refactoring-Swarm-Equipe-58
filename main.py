@@ -14,8 +14,8 @@ def main():
     results = analyze_sandbox("./sandbox")
     for r in results:
         print(r)
-
+                               #TODO  LAZM YMACHI MEME MAYMDLKCHE STRECTUR ANTIC
     print("✅ MISSION_COMPLETE")
-
+         #!    BALKKK TSEPARE LES TEST ET LE CODE 
 if __name__ == "__main__":
-    main()
+    main()     #! LES DEUX QUSTION  1.ASM LES FICHER IDA HWA 3TANA LES TEST 2. ASK HWA YRTINA LES TEST 
