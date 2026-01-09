@@ -60,7 +60,7 @@ Applique maintenant le plan, fichier par fichier. Réponds UNIQUEMENT en JSON.
     
     # 📋 LOGGING OBLIGATOIRE
     log_experiment(
-        agent_name="Corrector_Agent",
+        agent_name="Fixer",
         model_used=model_used,
         action=ActionType.FIX,
         details={

@@ -98,7 +98,7 @@ Analysez ces résultats et répondez UNIQUEMENT en JSON:
     
     # 📋 LOGGING OBLIGATOIRE
     log_experiment(
-        agent_name="Tester_Agent",
+        agent_name="Fixer",
         model_used=model_used,
         action=ActionType.ANALYSIS,
         details={
