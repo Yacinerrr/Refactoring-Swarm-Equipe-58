@@ -1,9 +1,22 @@
+# ============================================================
+# REFACTORING SWARM - Dependencies
+# ============================================================
+# Ne supprimez AUCUNE de ces dépendances de base
+
+# LangChain and LangGraph
 langchain==0.1.10
 langchain-openai==0.0.8
 langchain-google-genai==0.0.9
 langgraph==0.0.25
+
+# Code analysis tools
 pylint==3.0.3
 pytest==7.4.4
+
+# Core utilities
 python-dotenv==1.0.1
 pandas==2.2.0
 colorama==0.4.6
+
+# Google Generative AI (for Gemini API)
+google-generativeai==0.3.2
