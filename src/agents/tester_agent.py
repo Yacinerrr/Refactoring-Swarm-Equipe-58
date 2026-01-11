@@ -1,10 +1,13 @@
-# src/agents/tester_agent.py
+"""
+Tester Agent (Judge) - Exécute les tests et analyse les résultats
+==================================================================
+Le Judge exécute pytest et décide si on continue ou si c'est terminé.
+"""
 
-import os
 import json
-from pathlib import Path
 from src.utils.logger import log_experiment, ActionType
-from src.utils.analysis_tools import run_pytest  # ✅ Use toolsmith's pytest runner
+from src.utils.analysis_tools import run_pytest
+from src.utils.gemini_client import call_gemini_json
 
 
 def load_prompt():
@@ -13,22 +16,23 @@ def load_prompt():
         return file.read()
 
 
-def run_tester_agent(target_dir: str, model_used: str = "gemini-2.5-flash") -> dict:
+def run_tester_agent(target_dir: str, model_used: str = "gemini-1.5-flash") -> dict:
     """
     Exécute l'agent Testeur en utilisant les outils du Toolsmith.
     
     Args:
-        target_dir (str): Répertoire à tester.
-        model_used (str): Modèle LLM utilisé.
+        target_dir (str): Répertoire à tester
+        model_used (str): Modèle LLM utilisé
     
     Returns:
-        dict: Résultat structuré avec 'test_status', 'failing_tests', 'action'.
+        dict: Résultat avec 'test_status', 'failing_tests', 'action', 'should_continue'
     """
     
     system_prompt = load_prompt()
     
+    print(f"🧪 [JUDGE] Exécution des tests dans {target_dir}...")
+    
     # ✅ UTILISER L'OUTIL DU TOOLSMITH pour exécuter pytest
-    print(f"🧪 Running pytest using toolsmith's runner on {target_dir}...")
     pytest_results = run_pytest(target_dir)
     
     # Analyser les résultats
@@ -51,16 +55,13 @@ def run_tester_agent(target_dir: str, model_used: str = "gemini-2.5-flash") -> d
                 "return_code": result.get("code", 1)
             })
     
-    # Déterminer le statut
+    # Déterminer le statut initial
     if failed_tests == 0 and total_tests > 0:
-        test_status = "success"
-        action = "validate"
+        initial_status = "success"
     elif total_tests == 0:
-        test_status = "no_tests"
-        action = "return_to_corrector"  # Need to generate tests
+        initial_status = "no_tests"
     else:
-        test_status = "failure"
-        action = "return_to_corrector"
+        initial_status = "failure"
     
     # Construire le prompt pour le LLM
     pytest_summary = json.dumps(pytest_results, indent=2, ensure_ascii=False)
@@ -72,100 +73,112 @@ Répertoire testé: {target_dir}
 Tests trouvés: {total_tests}
 Tests échoués: {failed_tests}
 
-Détails:
+Détails complets:
 {pytest_summary}
 
 === MISSION ===
 Analysez ces résultats et répondez UNIQUEMENT en JSON:
+
 {{
   "test_status": "success" | "failure" | "no_tests",
   "action": "validate" | "return_to_corrector",
-  "analysis": "Votre analyse des problèmes"
+  "analysis": "Votre analyse factuelle des problèmes",
+  "failing_tests": [
+    {{
+      "test_name": "nom du test qui échoue",
+      "error_type": "type d'erreur",
+      "error_message": "message résumé"
+    }}
+  ]
 }}
+
+RÈGLES:
+- Si TOUS les tests passent → test_status="success", action="validate"
+- Si AU MOINS un test échoue → test_status="failure", action="return_to_corrector"
+- Si aucun test trouvé → test_status="no_tests", action="return_to_corrector"
 """
     
-    # ⚠️ INTÉGRATION MODÈLE IA
-    # À remplacer par: output_response = call_gemini_api(input_prompt)
-    
-    output_response = json.dumps({
-        "test_status": test_status,
-        "failing_tests": failing_tests,
-        "action": action,
-        "total_tests": total_tests,
-        "failed_tests": failed_tests,
-        "summary": f"{failed_tests}/{total_tests} tests failed" if failed_tests > 0 else "All tests passed"
-    }, indent=2)
-    
-    # 📋 LOGGING OBLIGATOIRE
-    log_experiment(
-        agent_name="Fixer",
-        model_used=model_used,
-        action=ActionType.ANALYSIS,
-        details={
-            "target_dir": target_dir,
-            "input_prompt": input_prompt,  # ✅ OBLIGATOIRE
-            "output_response": output_response,  # ✅ OBLIGATOIRE
-            "test_status": test_status,
-            "total_tests": total_tests,
-            "failed_tests": failed_tests,
-            "pytest_tool_results": pytest_results  # Données brutes du toolsmith
-        },
-        status="SUCCESS"
-    )
-    
-    # Traiter la réponse
+    # ✅ APPEL À L'API GEMINI
     try:
-        result = json.loads(output_response)
-        return {
-            "test_status": result.get("test_status", "unknown"),
-            "failing_tests": result.get("failing_tests", []),
-            "action": result.get("action", "unknown"),
-            "should_continue": result.get("action") == "return_to_corrector",
-            "summary": result.get("summary", "")
-        }
-    except json.JSONDecodeError as e:
+        output_response_json = call_gemini_json(input_prompt, model_name=model_used)
+        output_response = json.dumps(output_response_json, indent=2, ensure_ascii=False)
+        
+        # Extraire les informations importantes
+        test_status = output_response_json.get("test_status", initial_status)
+        action = output_response_json.get("action", "return_to_corrector")
+        analysis = output_response_json.get("analysis", "")
+        llm_failing_tests = output_response_json.get("failing_tests", [])
+        
+        # Utiliser les tests défaillants du LLM s'ils sont fournis, sinon ceux qu'on a détectés
+        final_failing_tests = llm_failing_tests if llm_failing_tests else failing_tests
+        
+        # 📋 LOGGING OBLIGATOIRE
         log_experiment(
-            agent_name="Tester_Agent",
+            agent_name="Judge",
             model_used=model_used,
             action=ActionType.ANALYSIS,
             details={
                 "target_dir": target_dir,
                 "input_prompt": input_prompt,
                 "output_response": output_response,
+                "test_status": test_status,
+                "total_tests": total_tests,
+                "failed_tests": failed_tests,
+                "pytest_tool_results": pytest_results
+            },
+            status="SUCCESS"
+        )
+        
+        # Afficher le résultat
+        if test_status == "success":
+            print("✅ [JUDGE] Tous les tests passent!")
+        elif test_status == "no_tests":
+            print("⚠️ [JUDGE] Aucun test trouvé")
+        else:
+            print(f"❌ [JUDGE] {len(final_failing_tests)} test(s) échoue(nt)")
+            if analysis:
+                print(f"   Analyse: {analysis[:100]}...")
+        
+        return {
+            "test_status": test_status,
+            "failing_tests": final_failing_tests,
+            "action": action,
+            "should_continue": (action == "return_to_corrector"),
+            "summary": f"{failed_tests}/{total_tests} tests failed" if failed_tests > 0 else "All tests passed",
+            "analysis": analysis
+        }
+        
+    except Exception as e:
+        error_msg = f"Erreur lors de l'appel à Gemini: {str(e)}"
+        
+        # En cas d'erreur, utiliser les résultats bruts
+        log_experiment(
+            agent_name="Judge",
+            model_used=model_used,
+            action=ActionType.DEBUG,
+            details={
+                "target_dir": target_dir,
+                "input_prompt": input_prompt,
+                "output_response": error_msg,
                 "error": str(e)
             },
             status="FAILURE"
         )
+        
+        # Retourner quand même un résultat utilisable
         return {
-            "test_status": "error",
-            "action": "error",
-            "error": f"Invalid JSON response: {str(e)}",
-            "should_continue": False
+            "test_status": initial_status,
+            "failing_tests": failing_tests,
+            "action": "validate" if initial_status == "success" else "return_to_corrector",
+            "should_continue": (initial_status != "success"),
+            "error": error_msg
         }
 
 
-def validate_and_test(target_dir: str, model_used: str = "gemini-2.5-flash") -> dict:
-    """
-    Pipeline complet utilisant les outils du Toolsmith.
-    """
-    print(f"🚀 Starting test validation for {target_dir}...")
-    result = run_tester_agent(target_dir, model_used)
-    
-    # Afficher un résumé
-    if result["test_status"] == "success":
-        print("✅ All tests passed!")
-    elif result["test_status"] == "failure":
-        print(f"❌ {len(result.get('failing_tests', []))} test(s) failed")
-    elif result["test_status"] == "no_tests":
-        print("⚠️ No tests found - need to generate tests")
-    else:
-        print(f"⚠️ Test execution error: {result.get('error', 'Unknown error')}")
-    
-    return result
-
-
 if __name__ == "__main__":
+    # Test avec un sandbox d'exemple
     test_dir = "./sandbox/example"
-    result = validate_and_test(test_dir)
-    print("\n=== Résultat Final ===")
+    result = run_tester_agent(test_dir)
+    
+    print("\n=== Résultat Final du Judge ===")
     print(json.dumps(result, indent=2, ensure_ascii=False))
