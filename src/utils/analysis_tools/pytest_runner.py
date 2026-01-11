@@ -1,31 +1,30 @@
 from pathlib import Path
 import subprocess
-import re
 
 def run_pytest(sandbox_root: str) -> list[dict]:
     """
-    Exécute pytest sur tous les fichiers de test du sandbox.
+    Exécute pytest sur tous les fichiers Python du sandbox, sans distinction test/src.
 
     Args:
         sandbox_root (str): chemin du dossier sandbox racine
 
     Returns:
-        list[dict]: liste de résultats pytest par fichier avec indication d'erreur de test
+        list[dict]: liste de résultats pytest par fichier avec code retour et remarque
     """
     sandbox_path = Path(sandbox_root).resolve()
     results = []
 
-    # Trouver tous les fichiers de test dans les dossiers "test"
-    test_files = list(sandbox_path.rglob("test_*.py"))
-    if not test_files:
+    # Trouver tous les fichiers Python dans le sandbox
+    py_files = list(sandbox_path.rglob("*.py"))
+    if not py_files:
         return [{
             "path": "",
             "code": 0,
-            "remarks": "Aucun fichier de test trouvé dans le sandbox.",
+            "remarks": "Aucun fichier Python trouvé dans le sandbox.",
             "test_error": False
         }]
 
-    for file_p in test_files:
+    for file_p in py_files:
         rel_path = file_p.relative_to(sandbox_path)
         cmd = ["pytest", str(rel_path), "--maxfail=1", "--disable-warnings", "-q"]
 
@@ -42,14 +41,15 @@ def run_pytest(sandbox_root: str) -> list[dict]:
             stderr = completed.stderr or ""
             rc = completed.returncode
 
-            # Détection d'erreur de test (similaire à syntax_error)
+            # Détection d'erreur de test : rc != 0
             test_error = rc != 0
 
-            # Première remarque utile
+            # Extraire le premier message utile
             remarks = "Aucun message descriptif disponible."
-            for line in (stdout + "\n" + stderr).splitlines():
+            combined_output = (stdout + "\n" + stderr).splitlines()
+            for line in combined_output:
                 line = line.strip()
-                if line and not line.lower().startswith("pytest") and not line.startswith("="):
+                if line and not line.startswith("=") and not line.lower().startswith("pytest"):
                     remarks = line
                     break
 
