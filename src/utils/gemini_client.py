@@ -3,6 +3,8 @@ Gemini API Client - Interface pour communiquer avec Google Gemini
 ==================================================================
 Ce module fournit une fonction simple pour envoyer des prompts à Gemini
 et recevoir des réponses structurées.
+
+Compatible avec google-generativeai v0.3.2
 """
 
 import os
@@ -23,7 +25,7 @@ genai.configure(api_key=GEMINI_API_KEY)
 
 def call_gemini(
     prompt: str,
-    model_name: str = "gemini-2.0-flash-exp",
+    model_name: str = "gemini-1.5-flash",
     temperature: float = 0.1,
     json_mode: bool = True
 ) -> str:
@@ -34,7 +36,7 @@ def call_gemini(
         prompt: Le prompt à envoyer
         model_name: Le modèle Gemini à utiliser
         temperature: Créativité (0.0 = déterministe, 1.0 = créatif)
-        json_mode: Si True, force la réponse en JSON
+        json_mode: Si True, demande une réponse JSON
     
     Returns:
         str: La réponse de Gemini
@@ -45,11 +47,11 @@ def call_gemini(
     Example:
         response = call_gemini(
             "Analyse ce code Python...",
-            model_name="gemini-2.0-flash-exp"
+            model_name="gemini-1.5-flash"
         )
     """
     try:
-        # Configuration du modèle
+        # Configuration du modèle pour la version 0.3.2
         generation_config = {
             "temperature": temperature,
             "top_p": 0.95,
@@ -57,13 +59,14 @@ def call_gemini(
             "max_output_tokens": 8192,
         }
         
-        if json_mode:
-            generation_config["response_mime_type"] = "application/json"
-        
         model = genai.GenerativeModel(
             model_name=model_name,
             generation_config=generation_config
         )
+        
+        # Si on veut du JSON, l'ajouter au prompt
+        if json_mode:
+            prompt = f"{prompt}\n\nRéponds UNIQUEMENT avec du JSON valide, sans texte avant ou après."
         
         # Générer la réponse
         response = model.generate_content(prompt)
@@ -82,7 +85,7 @@ def call_gemini(
         raise Exception(error_msg)
 
 
-def call_gemini_json(prompt: str, model_name: str = "gemini-2.0-flash-exp") -> dict:
+def call_gemini_json(prompt: str, model_name: str = "gemini-1.5-flash") -> dict:
     """
     Appelle Gemini et parse automatiquement la réponse JSON.
     
@@ -100,6 +103,16 @@ def call_gemini_json(prompt: str, model_name: str = "gemini-2.0-flash-exp") -> d
     response_text = call_gemini(prompt, model_name=model_name, json_mode=True)
     
     try:
+        # Nettoyer la réponse (enlever les balises markdown si présentes)
+        response_text = response_text.strip()
+        if response_text.startswith("```json"):
+            response_text = response_text[7:]
+        if response_text.startswith("```"):
+            response_text = response_text[3:]
+        if response_text.endswith("```"):
+            response_text = response_text[:-3]
+        response_text = response_text.strip()
+        
         return json.loads(response_text)
     except json.JSONDecodeError as e:
         print(f"⚠️ Réponse Gemini n'est pas du JSON valide:")
@@ -112,7 +125,7 @@ if __name__ == "__main__":
     print("🧪 Test de connexion à Gemini...")
     
     test_prompt = """
-    Réponds UNIQUEMENT en JSON avec ce format:
+    Réponds avec ce format JSON exact:
     {
         "status": "success",
         "message": "API Gemini fonctionne correctement"

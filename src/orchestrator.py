@@ -6,7 +6,7 @@ en utilisant LangGraph pour gérer le flux d'exécution.
 """
 
 from langgraph.graph import StateGraph, END
-from typing import Dict, Any
+from typing import Dict, Any, TypedDict
 import json
 
 from src.refactoring_state import (
@@ -262,7 +262,7 @@ def build_refactoring_graph() -> StateGraph:
     Returns:
         StateGraph: Le graphe compilé
     """
-    # Créer le graphe
+    # Créer le graphe avec la version 0.0.25
     workflow = StateGraph(RefactoringState)
     
     # Ajouter les nœuds (agents)
