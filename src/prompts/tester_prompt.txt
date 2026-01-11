@@ -15,15 +15,16 @@ LOGIQUE DE DÉCISION :
 
 FORMAT DE SORTIE OBLIGATOIRE (JSON UNIQUEMENT) :
 {
-  "test_status": "success | failure",
+  "test_status": "success" | "failure" | "no_tests",
+  "action": "validate" | "return_to_corrector",
+  "analysis": "<analyse factuelle>",
   "failing_tests": [
     {
       "test_name": "<nom_du_test>",
       "error_type": "<type_d_erreur>",
       "error_message": "<message résumé>"
     }
-  ],
-  "action": "validate | return_to_corrector"
+  ]
 }
 
 SI LES LOGS SONT INCOMPLETS :

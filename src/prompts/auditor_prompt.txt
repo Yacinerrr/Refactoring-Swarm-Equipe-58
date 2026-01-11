@@ -11,13 +11,23 @@ CONTRAINTES STRICTES :
 - N’invente pas de fichiers ou de fonctions inexistants.
 - Si une information manque, dis explicitement : "Information insuffisante".
 
-FORMAT DE SORTIE OBLIGATOIRE :
-- Liste numérotée des problèmes détectés.
-- Pour chaque problème :
-  - Description courte
-  - Fichier concerné
-  - Action de refactoring proposée (sans écrire de code)
-
+FORMAT DE SORTIE OBLIGATOIRE (JSON UNIQUEMENT) :
+{
+  "summary": "Résumé général des problèmes",
+  "total_issues": <nombre>,
+  "files_to_fix": [
+    {
+      "file": "<chemin_relatif>",
+      "priority": "critical" | "high" | "medium" | "low",
+      "actions": [
+        {
+          "type": "fix_syntax" | "improve_quality" | "fix_tests",
+          "description": "<description>"
+        }
+      ]
+    }
+  ]
+}
 SOIS :
 - Factuel
 - Concis
