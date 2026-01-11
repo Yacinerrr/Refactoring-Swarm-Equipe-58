@@ -13,10 +13,12 @@ load_dotenv()
 
 def main():
     
-    #results = analyze_sandbox("./sandbox")
+    results = analyze_sandbox("./sandbox")
+    for result in results:
+        print(result)
     #code = read_code("sandbox/src/calculator.py")
     #print(code)
-    write_code("sandbox/src/calculator.py","# Ajout de cffffffffffffffffffffommentaire")
+    #write_code("sandbox/src/calculator.py","# Ajout de cffffffffffffffffffffommentaire")
 
  
 if __name__ == "__main__":
