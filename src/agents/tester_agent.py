@@ -16,7 +16,7 @@ def load_prompt():
         return file.read()
 
 
-def run_tester_agent(target_dir: str, model_used: str = "gemini-1.5-flash") -> dict:
+def run_tester_agent(target_dir: str, model_used: str = "gemini-2.5-flash") -> dict:
     """
     Exécute l'agent Testeur en utilisant les outils du Toolsmith.
     

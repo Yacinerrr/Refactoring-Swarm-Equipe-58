@@ -18,7 +18,7 @@ def load_prompt():
         return file.read()
 
 
-def run_auditor_agent(sandbox_dir: str, model_used: str = "gemini-1.5-flash") -> dict:
+def run_auditor_agent(sandbox_dir: str, model_used: str = "gemini-2.5-flash") -> dict:
     """
     Exécute l'agent Auditeur pour analyser le code dans le sandbox.
     

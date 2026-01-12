@@ -1,11 +1,59 @@
 [
-  {
-    "id": "9e82e9b0-9b43-4a78-af43-d5d5ef848a2f",
-    "timestamp": "2025-12-26T01:26:41.177789",
-    "agent": "System",
-    "model": "unknown",
-    "action": "STARTUP",
-    "details": "Target: ./sandbox",
-    "status": "INFO"
-  }
+    {
+        "id": "9e82e9b0-9b43-4a78-af43-d5d5ef848a2f",
+        "timestamp": "2025-12-26T01:26:41.177789",
+        "agent": "System",
+        "model": "unknown",
+        "action": "STARTUP",
+        "details": "Target: ./sandbox",
+        "status": "INFO"
+    },
+    {
+        "id": "5b256c99-8bac-4f87-842e-ed337b0edf55",
+        "timestamp": "2026-01-11T12:11:00.367144",
+        "agent": "TestAgent",
+        "model": "test-model",
+        "action": "CODE_ANALYSIS",
+        "details": {
+            "input_prompt": "Test prompt",
+            "output_response": "Test response"
+        },
+        "status": "SUCCESS"
+    },
+    {
+        "id": "2a74fec7-303d-469e-811c-0be94489d31f",
+        "timestamp": "2026-01-11T12:14:11.102405",
+        "agent": "TestAgent",
+        "model": "test-model",
+        "action": "CODE_ANALYSIS",
+        "details": {
+            "input_prompt": "Test prompt",
+            "output_response": "Test response"
+        },
+        "status": "SUCCESS"
+    },
+    {
+        "id": "63911882-132b-4bfd-b4f5-aa8df9c48208",
+        "timestamp": "2026-01-11T23:09:50.427822",
+        "agent": "TestAgent",
+        "model": "test-model",
+        "action": "CODE_ANALYSIS",
+        "details": {
+            "input_prompt": "Test prompt",
+            "output_response": "Test response"
+        },
+        "status": "SUCCESS"
+    },
+    {
+        "id": "74fa5d80-1c03-4b56-a4b2-15149f5dbe24",
+        "timestamp": "2026-01-11T23:17:05.017595",
+        "agent": "TestAgent",
+        "model": "test-model",
+        "action": "CODE_ANALYSIS",
+        "details": {
+            "input_prompt": "Test prompt",
+            "output_response": "Test response"
+        },
+        "status": "SUCCESS"
+    }
 ]
