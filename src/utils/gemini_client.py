@@ -25,7 +25,7 @@ genai.configure(api_key=GEMINI_API_KEY)
 
 def call_gemini(
     prompt: str,
-    model_name: str = "gemini-1.5-flash",
+    model_name: str = "gemini-2.5-flash",
     temperature: float = 0.1,
     json_mode: bool = True
 ) -> str:
@@ -85,7 +85,7 @@ def call_gemini(
         raise Exception(error_msg)
 
 
-def call_gemini_json(prompt: str, model_name: str = "gemini-1.5-flash") -> dict:
+def call_gemini_json(prompt: str, model_name: str = "gemini-2.5-flash") -> dict:
     """
     Appelle Gemini et parse automatiquement la réponse JSON.
     

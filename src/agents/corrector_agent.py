@@ -20,7 +20,7 @@ def run_corrector_agent(
     audit_plan: str,
     target_file: str,
     sandbox_dir: str,
-    model_used: str = "gemini-1.5-flash"
+    model_used: str = "gemini-2.5-flash"
 ) -> dict:
     """
     Exécute l'agent Correcteur pour appliquer les modifications selon le plan d'audit.
