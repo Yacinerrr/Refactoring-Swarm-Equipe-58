@@ -1,127 +1,104 @@
-# src/agents/corrector_agent.py
-
-import os
 import json
-from src.utils.logger import log_experiment, ActionType
-
-def load_prompt():
-    """Charge le prompt système du correcteur."""
-    with open("src/prompts/corrector_prompt.txt", "r", encoding="utf-8") as file:
-        return file.read()
+from src.utils.log_helpers import log_fix  # ✅ Use the correct function
 
 
-def run_corrector_agent(audit_plan: str, target_code: str, target_file: str, model_used: str = "gemini-2.5-flash"):
+def run_corrector_agent(
+    audit_plan: dict,
+    target_code: str,
+    target_file: str,
+    model_used: str = "gemini-2.5-flash"
+) -> dict:
     """
-    Exécute l'agent Correcteur pour appliquer les modifications selon le plan d'audit.
-    
-    Args:
-        audit_plan (str): Le plan de refactoring produit par l'Agent Auditeur.
-        target_code (str): Le code source à modifier.
-        target_file (str): Le chemin du fichier ciblé (pour contexte et logging).
-        model_used (str): Modèle LLM utilisé.
-    
-    Returns:
-        dict: Résultat structuré avec 'status', 'modified_code', et 'changes'.
+    Corrects code according to the refactoring plan produced by the Auditor agent.
     """
-    
-    system_prompt = load_prompt()
-    
-    # Construire le prompt complet pour le modèle
-    # NOTE: Contexte limité pour économiser les tokens
+
+    # Load prompt directly (no split)
+    with open("src/prompts/corrector_prompt.txt", "r", encoding="utf-8") as f:
+        system_prompt = f.read()
+
     input_prompt = f"""{system_prompt}
 
-=== PLAN DE REFACTORING (par l'Auditeur) ===
-{audit_plan}
+=== REFACTORING PLAN ===
+{json.dumps(audit_plan, indent=2, ensure_ascii=False)}
 
-=== CODE À MODIFIER ===
-Fichier: {target_file}
+=== FILE TO FIX ===
+{target_file}
 
 ```python
 {target_code}
 ```
 
-Applique maintenant le plan, fichier par fichier. Réponds UNIQUEMENT en JSON.
+Respond ONLY in JSON format with the corrected code.
 """
-    
-    # ⚠️ INTÉGRATION MODÈLE IA (à compléter selon votre orchestrateur)
-    # Pour l'instant, simulation pour la démonstration
-    # À remplacer par: output_response = call_gemini_api(input_prompt)
-    
-    output_response = f"""{{
-  "file": "{target_file}",
-  "status": "modified",
-  "changes": [
-    {{
-      "type": "refactor",
-      "description": "Applied refactoring according to audit plan"
-    }}
-  ]
-}}"""
-    
-    # 📋 LOGGING OBLIGATOIRE
-    log_experiment(
-        agent_name="Fixer",
-        model_used=model_used,
-        action=ActionType.FIX,
-        details={
-            "file_processed": target_file,
-            "input_prompt": input_prompt,  # ✅ OBLIGATOIRE
-            "output_response": output_response,  # ✅ OBLIGATOIRE
-            "audit_plan_summary": audit_plan[:200] + "..." if len(audit_plan) > 200 else audit_plan
+
+    # 🔧 LLM RESPONSE (placeholder – replace with real model call)
+    output_response = json.dumps(
+        {
+            "file": target_file,
+            "status": "modified",
+            "changes": [
+                {
+                    "type": "refactor",
+                    "description": "Changes applied according to auditor plan"
+                }
+            ],
+            "modified_code": target_code  # This should contain the actual fixed code
         },
-        status="SUCCESS"
+        indent=2,
+        ensure_ascii=False
     )
-    
-    # Traiter la réponse
+
+    # Parse output
     try:
         result = json.loads(output_response)
-        return {
-            "status": result.get("status", "unknown"),
-            "file": result.get("file", target_file),
-            "changes": result.get("changes", []),
-            "modified_code": target_code  # À remplacer par le vrai code modifié
-        }
+        success = True
     except json.JSONDecodeError as e:
-        log_experiment(
-            agent_name="Corrector_Agent",
-            model_used=model_used,
-            action=ActionType.DEBUG,
-            details={
-                "file_processed": target_file,
-                "input_prompt": input_prompt,
-                "output_response": output_response,
-                "error": str(e)
-            },
-            status="FAILURE"
-        )
-        return {
-            "status": "error",
+        result = {
             "file": target_file,
-            "error": f"Invalid JSON response: {str(e)}"
+            "status": "error",
+            "error": str(e)
         }
+        success = False
+
+    # ✅ CORRECT LOGGER FOR CORRECTOR/FIXER
+    log_fix(
+        model=model_used,
+        input_prompt=input_prompt,
+        output_response=output_response,
+        file_fixed=target_file,
+        issues_fixed=[action["description"] for action in audit_plan.get("files_to_fix", [{}])[0].get("actions", [])],
+        success=success
+    )
+
+    return result
 
 
 if __name__ == "__main__":
-    # Test local
-    audit_plan_example = """
-    1. Problème: Fonction foo() manque de docstring
-       Fichier: example.py
-       Action: Ajouter docstring
+    # Minimal local test
+    audit_plan_example = {
+        "summary": "Example audit",
+        "files_to_fix": [
+            {
+                "file": "example.py",
+                "priority": "medium",
+                "actions": [
+                    {"type": "improve_quality", "description": "Remove unused variable"}
+                ]
+            }
+        ]
+    }
     
-    2. Problème: Variable 'x' non utilisée
-       Fichier: example.py
-       Action: Supprimer ou utiliser
-    """
-    
-    code_example = """def foo():
+    target_code_example = """
+def foo():
+    x = 1  # Variable non utilisée
     return 42
 """
     
     result = run_corrector_agent(
         audit_plan=audit_plan_example,
-        target_code=code_example,
+        target_code=target_code_example,
         target_file="example.py"
     )
     
-    print("=== Résultat du Correcteur ===")
+    print("\n=== Résultat du Corrector ===")
     print(json.dumps(result, indent=2, ensure_ascii=False))

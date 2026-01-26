@@ -3,8 +3,8 @@
 import os
 import json
 from pathlib import Path
-from src.utils.logger import log_experiment, ActionType
-from src.utils.analysis_tools import run_pylint, analyze_sandbox  # ✅ Import toolsmith's tools
+from src.utils.log_helpers import log_audit  # ✅ Utiliser le nouveau logger
+from src.utils.analysis_tools import run_pylint, analyze_sandbox
 
 
 def load_prompt():
@@ -32,11 +32,7 @@ def run_auditor_agent(sandbox_dir: str, model_used: str = "gemini-2.5-flash") ->
     # ✅ UTILISER L'OUTIL DU TOOLSMITH pour l'analyse complète
     print(f"🔍 Running analysis tools on {sandbox_dir}...")
     
-    # Option 1: Analyse complète (pylint + pytest combinés)
     analysis_results = analyze_sandbox(sandbox_dir)
-    
-    # Option 2: Si vous voulez juste pylint
-    # pylint_results = run_pylint(sandbox_dir)
     
     # Préparer les résultats pour le LLM
     files_with_issues = []
@@ -170,20 +166,16 @@ Répondez UNIQUEMENT en JSON.
     
     output_response = json.dumps(refactoring_plan, indent=2, ensure_ascii=False)
     
-    # 📋 LOGGING OBLIGATOIRE
-    log_experiment(
-        agent_name="Auditor",
-        model_used=model_used,
-        action=ActionType.ANALYSIS,
-        details={
-            "sandbox_analyzed": sandbox_dir,
-            "input_prompt": input_prompt,  # ✅ OBLIGATOIRE
-            "output_response": output_response,  # ✅ OBLIGATOIRE
-            "files_analyzed": len(analysis_results),
-            "issues_found": total_issues,
-            "analysis_tool_results": analysis_results  # Données brutes du toolsmith
-        },
-        status="SUCCESS"
+    # 📋 LOGGING OBLIGATOIRE avec le nouveau système
+    log_audit(
+        model=model_used,
+        input_prompt=input_prompt,
+        output_response=output_response,
+        file_analyzed=sandbox_dir,
+        issues_found=total_issues,
+        success=True,
+        files_analyzed=len(analysis_results),
+        analysis_tool_results=analysis_results  # Données brutes du toolsmith
     )
     
     return {
