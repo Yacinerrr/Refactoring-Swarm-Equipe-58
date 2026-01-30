@@ -58,6 +58,8 @@ def create_initial_state(sandbox_dir: str, max_iterations: int = 10) -> Refactor
     Returns:
         RefactoringState: État initial
     """
+    from src.config import get_model_name
+    
     return RefactoringState(
         # Configuration
         sandbox_dir=sandbox_dir,
@@ -85,7 +87,7 @@ def create_initial_state(sandbox_dir: str, max_iterations: int = 10) -> Refactor
         error_message=None,
         
         # Métadonnées
-        model_used="gemini-2.0-flash-exp",
+        model_used="gemini-2.5-flash",
         total_issues_found=0,
         total_issues_fixed=0
     )

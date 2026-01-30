@@ -157,7 +157,7 @@ def main():
     # Logger le démarrage
     log_experiment(
         agent_name="System",
-        model_used="gemini-1.5-flash",
+        model_used="gemini-2.5-flash",
         action=ActionType.ANALYSIS,
         details={
             "input_prompt": f"Starting refactoring on {args.target_dir}",
@@ -194,7 +194,7 @@ def main():
         # Logger la fin
         log_experiment(
             agent_name="System",
-            model_used="gemini-1.5-flash",
+            model_used="gemini-2.5-flash",
             action=ActionType.ANALYSIS,
             details={
                 "input_prompt": "Mission complete",
@@ -210,7 +210,7 @@ def main():
         print("\n\n⚠️ Interruption par l'utilisateur (Ctrl+C)")
         log_experiment(
             agent_name="System",
-            model_used="gemini-1.5-flash",
+            model_used="gemini-2.5-flash",
             action=ActionType.DEBUG,
             details={
                 "input_prompt": "User interrupted execution",
@@ -230,7 +230,7 @@ def main():
         
         log_experiment(
             agent_name="System",
-            model_used="gemini-1.5-flash",
+            model_used="gemini-2.5-flash",
             action=ActionType.DEBUG,
             details={
                 "input_prompt": "Critical error occurred",

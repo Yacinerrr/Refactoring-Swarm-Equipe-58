@@ -8,6 +8,7 @@ import json
 from src.utils.logger import log_experiment, ActionType
 from src.utils.gemini_client import call_gemini_json
 from src.utils.file_tools import read_file, write_file, extract_code_from_markdown
+from src.config import get_model_name
 
 
 def load_prompt():
@@ -20,7 +21,7 @@ def run_corrector_agent(
     audit_plan: str,
     target_file: str,
     sandbox_dir: str,
-    model_used: str = "gemini-2.5-flash"
+    model_used: str = None
 ) -> dict:
     """
     Exécute l'agent Correcteur pour appliquer les modifications selon le plan d'audit.
@@ -29,11 +30,15 @@ def run_corrector_agent(
         audit_plan (str): Le plan de refactoring produit par l'Agent Auditeur (JSON)
         target_file (str): Le chemin du fichier à modifier (relatif au sandbox)
         sandbox_dir (str): Le chemin du dossier sandbox
-        model_used (str): Modèle LLM utilisé
+        model_used (str): Modèle LLM utilisé (None = utilise config.py)
     
     Returns:
         dict: Résultat avec 'status', 'file', 'changes', 'modified_code'
     """
+    
+    # Utiliser le modèle par défaut si non spécifié
+    if model_used is None:
+        model_used = get_model_name()
     
     system_prompt = load_prompt()
     
