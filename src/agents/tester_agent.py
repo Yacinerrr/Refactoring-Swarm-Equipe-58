@@ -8,6 +8,7 @@ import json
 from src.utils.logger import log_experiment, ActionType
 from src.utils.analysis_tools import run_pytest
 from src.utils.gemini_client import call_gemini_json
+from src.config import get_model_name
 
 
 def load_prompt():
@@ -16,17 +17,21 @@ def load_prompt():
         return file.read()
 
 
-def run_tester_agent(target_dir: str, model_used: str = "gemini-2.5-flash") -> dict:
+def run_tester_agent(target_dir: str, model_used: str = None) -> dict:
     """
     Exécute l'agent Testeur en utilisant les outils du Toolsmith.
     
     Args:
         target_dir (str): Répertoire à tester
-        model_used (str): Modèle LLM utilisé
+        model_used (str): Modèle LLM utilisé (None = utilise config.py)
     
     Returns:
         dict: Résultat avec 'test_status', 'failing_tests', 'action', 'should_continue'
     """
+    
+    # Utiliser le modèle par défaut si non spécifié
+    if model_used is None:
+        model_used = get_model_name()
     
     system_prompt = load_prompt()
     

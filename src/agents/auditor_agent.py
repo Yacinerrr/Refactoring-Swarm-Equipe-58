@@ -10,6 +10,7 @@ from pathlib import Path
 from src.utils.logger import log_experiment, ActionType
 from src.utils.analysis_tools import analyze_sandbox
 from src.utils.gemini_client import call_gemini_json
+from src.config import get_model_name
 
 
 def load_prompt():
@@ -18,7 +19,7 @@ def load_prompt():
         return file.read()
 
 
-def run_auditor_agent(sandbox_dir: str, model_used: str = "gemini-2.5-flash") -> dict:
+def run_auditor_agent(sandbox_dir: str, model_used: str = None) -> dict:
     """
     Exécute l'agent Auditeur pour analyser le code dans le sandbox.
     
@@ -26,11 +27,15 @@ def run_auditor_agent(sandbox_dir: str, model_used: str = "gemini-2.5-flash") ->
     
     Args:
         sandbox_dir (str): Chemin du dossier sandbox à analyser
-        model_used (str): Modèle LLM utilisé
+        model_used (str): Modèle LLM utilisé (None = utilise config.py)
     
     Returns:
         dict: Plan de refactoring structuré avec status, sandbox, refactoring_plan
     """
+    
+    # Utiliser le modèle par défaut si non spécifié
+    if model_used is None:
+        model_used = get_model_name()
     
     system_prompt = load_prompt()
     
