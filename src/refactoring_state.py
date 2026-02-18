@@ -24,6 +24,7 @@ class RefactoringState(TypedDict):
     audit_complete: bool  # L'audit a-t-il été réalisé?
     audit_plan: Optional[Dict[str, Any]]  # Plan de refactoring de l'Auditor
     files_to_fix: List[str]  # Liste des fichiers à corriger
+    expected_behaviors: List[Dict[str, Any]]  # Comportements attendus identifiés par l'Auditor
     
     # État de la correction
     current_iteration: int  # Numéro d'itération actuel
@@ -69,6 +70,7 @@ def create_initial_state(sandbox_dir: str, max_iterations: int = 10) -> Refactor
         audit_complete=False,
         audit_plan=None,
         files_to_fix=[],
+        expected_behaviors=[],
         
         # Correction
         current_iteration=0,

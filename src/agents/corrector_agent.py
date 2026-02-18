@@ -1,205 +1,237 @@
 """
-Corrector Agent (Fixer) - Applique les corrections selon le plan d'audit
-==========================================================================
-Le Fixer lit le plan de refactoring et modifie le code fichier par fichier.
+COMPLETE Simple Corrector - Fully Integrated  
+=============================================
+Works with orchestrator, receives expected_behaviors AND test_feedback.
 """
 
 import json
 from src.utils.logger import log_experiment, ActionType
-from src.utils.gemini_client import call_gemini_json
+from src.utils.gemini_client import call_gemini, call_gemini_json
 from src.utils.file_tools import read_file, write_file, extract_code_from_markdown
 from src.config import get_model_name
 
 
 def load_prompt():
     """Charge le prompt système du correcteur."""
-    with open("src/prompts/corrector_prompt.txt", "r", encoding="utf-8") as file:
-        return file.read()
+    return """Tu es un expert en correction de code Python.
+MISSION: Corriger le code pour qu'il fasse exactement ce qui est attendu."""
 
 
 def run_corrector_agent(
-    audit_plan: str,
-    target_file: str,
+    audit_plan: dict,
+    expected_behaviors: list,
+    test_feedback: dict,
     sandbox_dir: str,
     model_used: str = None
 ) -> dict:
     """
-    Exécute l'agent Correcteur pour appliquer les modifications selon le plan d'audit.
+    Version SIMPLE mais COMPLÈTE du Corrector.
+    Compatible avec l'orchestrateur existant.
     
     Args:
-        audit_plan (str): Le plan de refactoring produit par l'Agent Auditeur (JSON)
-        target_file (str): Le chemin du fichier à modifier (relatif au sandbox)
-        sandbox_dir (str): Le chemin du dossier sandbox
-        model_used (str): Modèle LLM utilisé (None = utilise config.py)
+        audit_plan: Plan de refactoring de l'Auditor (dict)
+        expected_behaviors: Comportements attendus (list)
+        test_feedback: Feedback du Tester si tests échouent (dict ou None)
+        sandbox_dir: Chemin du sandbox
+        model_used: Modèle LLM
     
     Returns:
-        dict: Résultat avec 'status', 'file', 'changes', 'modified_code'
+        dict compatible avec orchestrateur:
+        {
+            "status": "modified",
+            "files_modified": [...],
+            "changes": [...],
+            "ready_for_testing": True
+        }
     """
     
-    # Utiliser le modèle par défaut si non spécifié
     if model_used is None:
         model_used = get_model_name()
     
-    system_prompt = load_prompt()
+    print(f"🔧 [CORRECTOR] Correction des fichiers...")
     
-    print(f"🔧 [FIXER] Correction de: {target_file}")
+    # Get files to fix
+    files_to_fix = audit_plan.get("files_to_fix", [])
     
-    # Lire le code actuel du fichier
-    try:
-        current_code = read_file(target_file, sandbox_dir)
-    except FileNotFoundError:
-        print(f"⚠️ [FIXER] Fichier non trouvé: {target_file}")
+    if not files_to_fix:
+        print("  ℹ️ Aucun fichier à corriger")
         return {
-            "status": "error",
-            "file": target_file,
-            "error": "File not found",
-            "changes": []
+            "status": "unchanged",
+            "files_modified": [],
+            "changes": [],
+            "ready_for_testing": True
         }
     
-    # Construire le prompt complet
-    input_prompt = f"""{system_prompt}
+    all_files_modified = []
+    all_changes = []
+    
+    # Process each file
+    for file_info in files_to_fix:
+        file_path = file_info["file"]
+        
+        print(f"  📝 Correction de: {file_path}")
+        
+        try:
+            # Read current code
+            current_code = read_file(file_path, sandbox_dir)
+            
+            # Get expected behaviors for THIS file
+            file_behaviors = [
+                b for b in expected_behaviors 
+                if b.get("file") == file_path
+            ]
+            
+            # Build comprehensive prompt
+            behaviors_text = json.dumps(file_behaviors, indent=2, ensure_ascii=False)
+            
+            # Add test feedback if available (from loop)
+            feedback_text = ""
+            if test_feedback and test_feedback.get("failing_tests"):
+                feedback_text = f"""
 
-=== PLAN DE REFACTORING (par l'Auditeur) ===
-{audit_plan}
+=== FEEDBACK DES TESTS (PRIORITÉ HAUTE) ===
+Les tests ont échoué. Voici les erreurs détaillées:
 
-=== CODE ACTUEL À MODIFIER ===
-Fichier: {target_file}
+{json.dumps(test_feedback["failing_tests"], indent=2, ensure_ascii=False)}
+
+IMPORTANT: Utilise ce feedback pour corriger les bugs restants!
+"""
+            
+            input_prompt = f"""Corrige ce code Python pour qu'il fasse EXACTEMENT ce qui est attendu.
+
+=== CODE ACTUEL ===
+Fichier: {file_path}
+
 ```python
 {current_code}
 ```
 
-=== INSTRUCTIONS ===
-1. Lis attentivement le plan de refactoring
-2. Identifie les actions à appliquer pour CE fichier spécifique: {target_file}
-3. Applique UNIQUEMENT les modifications décrites dans le plan
-4. Retourne le code modifié complet
+=== COMPORTEMENTS ATTENDUS ===
+Pour chaque fonction, voici ce qu'elle DOIT faire:
 
-Format de sortie OBLIGATOIRE (JSON):
+{behaviors_text}
+
+{feedback_text}
+
+=== MISSION ===
+1. Pour chaque fonction avec un bug logique (has_logic_bug=true):
+   - Compare le code actuel avec expected_formula
+   - Applique la correction (ajoute division, comparaison, etc.)
+   - GARDE LE MÊME NOM DE FONCTION (ne renomme pas!)
+
+2. Pour chaque fonction avec un problème de qualité (has_quality_issue=true):
+   - Améliore les variables internes (ex: x → sum_result)
+   - Ajoute/améliore les docstrings
+   - ⚠️ NE RENOMME PAS LES FONCTIONS (cela casserait les tests)
+   - Si vraiment nécessaire de renommer, indique-le dans le champ "rename_warning"
+
+3. Si feedback de tests fourni:
+   - PRIORISE ces corrections
+   - Utilise expected vs actual pour comprendre l'erreur
+
+4. Préserve le code non modifié:
+   - Garde tous les imports identiques
+   - Ne touche pas aux fonctions sans problèmes
+   - Retourne le code COMPLET du fichier
+
+APPROCHE GÉNÉRALE:
+
+**Pour bugs logiques:**
+- Identifie l'opération/formule attendue dans expected_formula
+- Compare avec le code actuel (utilise current_code si disponible)
+- Applique la correction minimale (ajoute/modifie seulement ce qui manque)
+- Vérifie que la logique correspond maintenant à expected_behavior
+
+**Pour problèmes de qualité:**
+- Améliore les noms de variables internes (ex: noms cryptiques → noms descriptifs)
+- Ajoute/améliore docstrings (description, Args, Returns, Raises)
+- Améliore lisibilité (espaces, commentaires si complexe)
+- N'INVENTE PAS de nouvelle logique, améliore juste la forme
+
+**Si feedback de tests:**
+- Analyse les assertions qui échouent
+- Compare expected vs actual dans les messages d'erreur
+- Corrige la logique pour que actual = expected
+
+RÉPONDS EN JSON:
 {{
-  "file": "{target_file}",
-  "status": "modified" | "unchanged",
+  "file": "{file_path}",
+  "status": "modified",
   "changes": [
     {{
-      "type": "fix_syntax | improve_quality | fix_tests | add_docstring",
-      "description": "Description de la modification"
+      "function": "calculate_average",
+      "type": "logic_fix",
+      "description": "Ajout de la division par len(numbers)"
     }}
   ],
-  "modified_code": "Le code Python complet après modifications (sans balises markdown)"
+  "corrected_code": "Code Python complet corrigé (SANS balises markdown)",
+  "rename_warning": "Optional: Si une fonction devrait être renommée mais tu ne l'as pas fait"
 }}
 
-IMPORTANT: Le champ "modified_code" doit contenir TOUT le code du fichier après modifications,
-pas seulement les parties changées. N'utilise PAS de balises ```python```, juste le code pur.
+Si aucune correction nécessaire, status="unchanged".
 """
+            
+            # Call Gemini
+            output_response_json = call_gemini_json(input_prompt, model_name=model_used)
+            output_response = json.dumps(output_response_json, indent=2, ensure_ascii=False)
+            
+            # Extract corrected code
+            if output_response_json.get("status") == "modified":
+                corrected_code = output_response_json.get("corrected_code", "")
+                
+                # Clean code (remove markdown if present)
+                corrected_code = extract_code_from_markdown(corrected_code)
+                
+                if corrected_code and corrected_code != current_code:
+                    # Write corrected code
+                    write_file(file_path, corrected_code, sandbox_dir)
+                    all_files_modified.append(file_path)
+                    
+                    # Track changes
+                    changes = output_response_json.get("changes", [])
+                    all_changes.extend(changes)
+                    
+                    print(f"    ✅ {len(changes)} changement(s) appliqué(s)")
+                else:
+                    print(f"    ℹ️ Aucune modification nécessaire")
+            
+            # Log
+            log_experiment(
+                agent_name="Corrector",
+                model_used=model_used,
+                action=ActionType.FIX,
+                details={
+                    "file_processed": file_path,
+                    "input_prompt": input_prompt,
+                    "output_response": output_response,
+                    "had_test_feedback": (test_feedback is not None),
+                    "code_modified": (output_response_json.get("status") == "modified")
+                },
+                status="SUCCESS"
+            )
+            
+        except Exception as e:
+            print(f"    ❌ Erreur: {e}")
+            # Include required fields for logging validation
+            error_input = input_prompt if 'input_prompt' in locals() else f"Correction du fichier: {file_path}"
+            log_experiment(
+                agent_name="Corrector",
+                model_used=model_used,
+                action=ActionType.DEBUG,
+                details={
+                    "file_processed": file_path,
+                    "input_prompt": error_input,
+                    "output_response": f"ERREUR: {str(e)}",
+                    "error": str(e)
+                },
+                status="FAILURE"
+            )
     
-    # ✅ APPEL À L'API GEMINI
-    try:
-        output_response_json = call_gemini_json(input_prompt, model_name=model_used)
-        output_response = json.dumps(output_response_json, indent=2, ensure_ascii=False)
-        
-        # Extraire le code modifié
-        modified_code = output_response_json.get("modified_code", "")
-        
-        # Nettoyer le code (enlever les balises markdown si présentes)
-        modified_code = extract_code_from_markdown(modified_code)
-        
-        # Si le code a été modifié, l'écrire dans le fichier
-        if output_response_json.get("status") == "modified" and modified_code:
-            write_file(target_file, modified_code, sandbox_dir)
-            print(f"✅ [FIXER] Fichier modifié: {target_file}")
-        else:
-            print(f"ℹ️ [FIXER] Aucune modification pour: {target_file}")
-        
-        # 📋 LOGGING OBLIGATOIRE
-        log_experiment(
-            agent_name="Fixer",
-            model_used=model_used,
-            action=ActionType.FIX,
-            details={
-                "file_processed": target_file,
-                "input_prompt": input_prompt,
-                "output_response": output_response,
-                "code_modified": output_response_json.get("status") == "modified",
-                "changes_count": len(output_response_json.get("changes", []))
-            },
-            status="SUCCESS"
-        )
-        
-        return {
-            "status": output_response_json.get("status", "unknown"),
-            "file": target_file,
-            "changes": output_response_json.get("changes", []),
-            "modified_code": modified_code
-        }
-        
-    except Exception as e:
-        error_msg = f"Erreur lors de l'appel à Gemini: {str(e)}"
-        
-        log_experiment(
-            agent_name="Fixer",
-            model_used=model_used,
-            action=ActionType.DEBUG,
-            details={
-                "file_processed": target_file,
-                "input_prompt": input_prompt,
-                "output_response": error_msg,
-                "error": str(e)
-            },
-            status="FAILURE"
-        )
-        
-        return {
-            "status": "error",
-            "file": target_file,
-            "error": str(e),
-            "changes": []
-        }
-
-
-if __name__ == "__main__":
-    # Test local
-    import os
-    from pathlib import Path
+    print(f"✅ [CORRECTOR] {len(all_files_modified)} fichier(s) modifié(s)")
     
-    # Créer un fichier de test
-    test_sandbox = "./sandbox/test_fixer"
-    os.makedirs(test_sandbox, exist_ok=True)
-    
-    test_file = "example.py"
-    Path(test_sandbox) / test_file
-    
-    # Écrire un code avec des problèmes
-    write_file(test_file, """def foo():
-    x = 1
-    return 42
-""", test_sandbox)
-    
-    # Plan d'audit exemple
-    audit_plan = json.dumps({
-        "summary": "Problèmes de qualité détectés",
-        "total_issues": 2,
-        "files_to_fix": [
-            {
-                "file": "example.py",
-                "priority": "medium",
-                "actions": [
-                    {
-                        "type": "add_docstring",
-                        "description": "Ajouter une docstring à la fonction foo"
-                    },
-                    {
-                        "type": "improve_quality",
-                        "description": "Supprimer la variable inutilisée x"
-                    }
-                ]
-            }
-        ]
-    }, indent=2)
-    
-    result = run_corrector_agent(
-        audit_plan=audit_plan,
-        target_file=test_file,
-        sandbox_dir=test_sandbox
-    )
-    
-    print("\n=== Résultat du Correcteur ===")
-    print(json.dumps(result, indent=2, ensure_ascii=False))
+    return {
+        "status": "modified" if all_files_modified else "unchanged",
+        "files_modified": all_files_modified,
+        "changes": all_changes,
+        "ready_for_testing": True
+    }
