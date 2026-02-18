@@ -37,11 +37,15 @@ if not GOOGLE_API_KEY:
     )
 
 # ============================================================
-# CONFIGURATION DES RETRIES
+# CONFIGURATION DES RETRIES ET RATE LIMITING
 # ============================================================
 
 MAX_RETRIES = 3  # Nombre de tentatives en cas de rate limit
 RETRY_DELAY = 5  # Délai de base entre les tentatives (secondes)
+
+# NOUVELLE CONFIGURATION: Pause entre agents
+INTER_AGENT_DELAY = 2  # Secondes d'attente entre chaque agent (évite rate limits)
+ENABLE_RATE_LIMIT_PROTECTION = True  # Active la pause automatique
 
 # ============================================================
 # CONFIGURATION DE LA GÉNÉRATION
@@ -87,6 +91,11 @@ def get_generation_config() -> dict:
     return GENERATION_CONFIG.copy()
 
 
+def get_inter_agent_delay() -> int:
+    """Retourne le délai à attendre entre agents."""
+    return INTER_AGENT_DELAY if ENABLE_RATE_LIMIT_PROTECTION else 0
+
+
 # ============================================================
 # AFFICHAGE DE LA CONFIGURATION (pour debug)
 # ============================================================
@@ -100,4 +109,7 @@ if __name__ == "__main__":
     print(f"Max retries        : {MAX_RETRIES}")
     print(f"Max iterations     : {MAX_ITERATIONS}")
     print(f"Temperature        : {GENERATION_CONFIG['temperature']}")
+    print(f"\n🚦 Protection Rate Limit:")
+    print(f"   Activée         : {'✅ Oui' if ENABLE_RATE_LIMIT_PROTECTION else '❌ Non'}")
+    print(f"   Délai inter-agent: {INTER_AGENT_DELAY}s")
     print("="*60)
